@@ -203,7 +203,6 @@ $$\boldsymbol{\beta}^{(t+1)} = \boldsymbol{\beta}^{(t)} - \left( X^T D^{(t)} X \
 
 下面我**严格对照你发的这 4 页教材**，把每一个跳跃的公式掰开揉碎，在需要用到概率论和线性代数的地方直接给你做“前置小补给”，带你顺畅地走完整个推导！
 
----
 
 # LDA内容
 ### 第一部分：核心思想与“投影”的数学表达（对应第 1 页）
@@ -380,3 +379,177 @@ $$(\mathbf{S}_w^{-1} \mathbf{S}_b) \mathbf{W} = \lambda \mathbf{W}$$
 4. **结果**：二分类直接有公式 $\boldsymbol{w} = \mathbf{S}_w^{-1}(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)$；多分类取 $\mathbf{S}_w^{-1}\mathbf{S}_b$ 最大的前 $N-1$ 个特征向量
 
 
+
+# Append
+
+
+
+## 第一部分：二分类 LDA 的完整推导
+
+### 1. 我们的目标是什么？（几何直觉）
+假设空间中有两类数据 $X_0$（第0类）和 $X_1$（第1类），每个样本都是 $d$ 维列向量 $\boldsymbol{x} \in \mathbb{R}^d$
+我们想找**一条穿过原点的直线**（由方向向量 $\boldsymbol{w} \in \mathbb{R}^d$ 决定），把所有 $d$ 维数据点投影到这条直线上
+
+点 $\boldsymbol{x}$ 投影到方向 $\boldsymbol{w}$ 上的坐标（一个纯数字）是：
+$$y = \boldsymbol{w}^T \boldsymbol{x}$$
+
+什么样的直线才是好直线？记住八字真言：**类内尽可能近，类间尽可能远**
+* **类间远**：投影后，两类中心点的距离要尽量大
+* **类内近**：投影后，同类样本点要尽量挤在一起（方差/协方差要小）
+
+---
+
+### 2. 把“八字真言”翻译成数学公式
+
+先定义两类在**原始 $d$ 维空间**里的均值向量（中心点）和散度矩阵（未除以样本数的协方差矩阵）：
+* 均值：$\boldsymbol{\mu}_0 = \frac{1}{m_0}\sum_{\boldsymbol{x} \in X_0} \boldsymbol{x}$，$\quad \boldsymbol{\mu}_1 = \frac{1}{m_1}\sum_{\boldsymbol{x} \in X_1} \boldsymbol{x}$
+* 类内离差矩阵：
+  $$\mathbf{\Sigma}_0 = \sum_{\boldsymbol{x} \in X_0} (\boldsymbol{x} - \boldsymbol{\mu}_0)(\boldsymbol{x} - \boldsymbol{\mu}_0)^T, \quad \mathbf{\Sigma}_1 = \sum_{\boldsymbol{x} \in X_1} (\boldsymbol{x} - \boldsymbol{\mu}_1)(\boldsymbol{x} - \boldsymbol{\mu}_1)^T$$
+
+现在把它们全部投影到直线 $\boldsymbol{w}$ 上（左乘 $\boldsymbol{w}^T$）：
+
+#### (1) 计算“类间距离”（分子）
+两类中心点投影后变成两个数字：$\tilde{\mu}_0 = \boldsymbol{w}^T\boldsymbol{\mu}_0$，$\tilde{\mu}_1 = \boldsymbol{w}^T\boldsymbol{\mu}_1$
+它们距离的平方是：
+$$(\tilde{\mu}_0 - \tilde{\mu}_1)^2 = \big[\boldsymbol{w}^T(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)\big]^2$$
+这里用到一个小技巧：标量 $a^2 = a \cdot a^T$。把 $a = \boldsymbol{w}^T(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)$ 代入：
+$$(\tilde{\mu}_0 - \tilde{\mu}_1)^2 = \boldsymbol{w}^T (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)^T \boldsymbol{w}$$
+我们把中间那个 $d \times d$ 的矩阵定义为**类间散度矩阵** $\mathbf{S}_b$（between-class）：
+$$\mathbf{S}_b = (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)^T$$
+于是分子可以简洁地写成：$\boldsymbol{w}^T \mathbf{S}_b \boldsymbol{w}$
+
+#### (2) 计算“类内散度”（分母）
+第 0 类样本投影到直线上之后，离自己中心 $\tilde{\mu}_0$ 的平方偏差总和是：
+$$\sum_{\boldsymbol{x} \in X_0} (\boldsymbol{w}^T\boldsymbol{x} - \boldsymbol{w}^T\boldsymbol{\mu}_0)^2 = \sum_{\boldsymbol{x} \in X_0} \boldsymbol{w}^T(\boldsymbol{x} - \boldsymbol{\mu}_0)(\boldsymbol{x} - \boldsymbol{\mu}_0)^T\boldsymbol{w} = \boldsymbol{w}^T \mathbf{\Sigma}_0 \boldsymbol{w}$$
+同理，第 1 类投影后的散度是 $\boldsymbol{w}^T \mathbf{\Sigma}_1 \boldsymbol{w}$
+把两类的“不团结程度”加起来，定义**类内散度矩阵** $\mathbf{S}_w$（within-class）：
+$$\mathbf{S}_w = \mathbf{\Sigma}_0 + \mathbf{\Sigma}_1$$
+于是分母可以简洁地写成：$\boldsymbol{w}^T \mathbf{S}_w \boldsymbol{w}$
+
+#### (3) 组合出最终目标函数 $J$（广义瑞利商）
+我们要让“分子尽量大，分母尽量小”，也就是**最大化它们的比值**：
+$$\max_{\boldsymbol{w}} J(\boldsymbol{w}) = \frac{\boldsymbol{w}^T \mathbf{S}_b \boldsymbol{w}}{\boldsymbol{w}^T \mathbf{S}_w \boldsymbol{w}}$$
+
+---
+
+### 3. 求解最优的 $\boldsymbol{w}$（最精彩的一步！）
+
+仔细看 $J(\boldsymbol{w})$：如果我们把 $\boldsymbol{w}$ 放大 10 倍变成 $10\boldsymbol{w}$，分子变成 $100$ 倍，分母也变成 $100$ 倍，**比值 $J$ 完全不变**！
+这说明：$J$ 只在乎 $\boldsymbol{w}$ 的**方向**，不在乎 $\boldsymbol{w}$ 的**长度**
+
+既然长度随便取都不影响结果，那为了好算，我们干脆**强行规定分母必须等于 1**（即固定 $\boldsymbol{w}$ 的一种缩放尺度）：
+$$\max_{\boldsymbol{w}} \ \boldsymbol{w}^T \mathbf{S}_b \boldsymbol{w} \quad \text{约束条件: } \boldsymbol{w}^T \mathbf{S}_w \boldsymbol{w} = 1$$
+
+用高数里的**拉格朗日乘子法**构造拉格朗日函数（引入常数 $\lambda$）：
+$$L(\boldsymbol{w}, \lambda) = \boldsymbol{w}^T \mathbf{S}_b \boldsymbol{w} - \lambda(\boldsymbol{w}^T \mathbf{S}_w \boldsymbol{w} - 1)$$
+
+> **线代求导小工具**：对于对称矩阵 $\mathbf{A}$，二次型 $\boldsymbol{w}^T \mathbf{A} \boldsymbol{w}$ 对向量 $\boldsymbol{w}$ 求导，就像 $a x^2$ 对 $x$ 求导得到 $2ax$ 一样，结果是：
+> $$\frac{\partial (\boldsymbol{w}^T \mathbf{A} \boldsymbol{w})}{\partial \boldsymbol{w}} = 2\mathbf{A}\boldsymbol{w}$$
+> （注意 $\mathbf{S}_b$ 和 $\mathbf{S}_w$ 显然都是对称矩阵！）
+
+对 $L(\boldsymbol{w}, \lambda)$ 关于 $\boldsymbol{w}$ 求导并令其为 0：
+$$2\mathbf{S}_b \boldsymbol{w} - 2\lambda \mathbf{S}_w \boldsymbol{w} = 0 \implies \mathbf{S}_b \boldsymbol{w} = \lambda \mathbf{S}_w \boldsymbol{w}$$
+
+**接下来就是二分类独有的“魔法时刻”**：
+把 $\mathbf{S}_b = (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)^T$ 展开代进去：
+$$\mathbf{S}_b \boldsymbol{w} = (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1) \underbrace{\big[(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)^T \boldsymbol{w}\big]}_{\text{行向量乘列向量 = 一个纯数字！}}$$
+
+记这个纯数字为常数 $\gamma$，上面那个式子立刻变成了：
+$$\gamma (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1) = \lambda \mathbf{S}_w \boldsymbol{w}$$
+
+假设 $\mathbf{S}_w$ 可逆，两边同时左乘 $\mathbf{S}_w^{-1}$：
+$$\boldsymbol{w} = \frac{\gamma}{\lambda} \mathbf{S}_w^{-1} (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)$$
+
+别忘了我们前面说过：**我们只在乎 $\boldsymbol{w}$ 的方向，不在乎长度！** 前面的 $\frac{\gamma}{\lambda}$ 只是个缩放倍数的纯数字，直接扔掉！于是得到二分类 LDA 的闭式解：
+$$\boxed{\boldsymbol{w} = \mathbf{S}_w^{-1} (\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)}$$
+
+*(注：在数值计算或样本数少于特征数导致 $\mathbf{S}_w$ 不可逆时，通常对 $\mathbf{S}_w$ 做 SVD 分解求伪逆，或者加上一个小扰动 $\mathbf{S}_w + \epsilon\mathbf{I}$ 再求逆)*
+
+---
+
+## 第二部分：推广到多分类 LDA
+
+假设现在有 $N$ 个类别（比如 $N=3$ 类花）。如果只投影到 **1 条直线**上，3 个类挤在一根线里很容易分不开！
+因此，我们不再只找 1 个方向向量 $\boldsymbol{w}$，而是找 **$d'$ 个互不冗余的方向向量**，把它们竖着拼成一个**投影矩阵** $\mathbf{W} \in \mathbb{R}^{d \times d'}$：
+$$\mathbf{W} = [\boldsymbol{w}_1, \boldsymbol{w}_2, \dots, \boldsymbol{w}_{d'}]$$
+每个 $d$ 维样本 $\boldsymbol{x}$ 投影后，变成了一个 $d'$ 维的新向量：$\boldsymbol{z} = \mathbf{W}^T \boldsymbol{x} \in \mathbb{R}^{d'}$。这就是**监督降维**。
+
+---
+
+### 1. 重新定义“类内散度”和“类间散度”（重要定理！）
+
+设总共有 $m$ 个样本，第 $i$ 类有 $m_i$ 个样本、中心为 $\boldsymbol{\mu}_i$，**所有样本的全局大中心**为 $\boldsymbol{\mu} = \frac{1}{m}\sum_{j=1}^m \boldsymbol{x}_j$
+
+首先定义**全局总散度矩阵 $\mathbf{S}_t$**（total，衡量所有样本围绕大中心的散开程度）：
+$$\mathbf{S}_t = \sum_{j=1}^m (\boldsymbol{x}_j - \boldsymbol{\mu})(\boldsymbol{x}_j - \boldsymbol{\mu})^T$$
+
+我们把 $\mathbf{S}_t$ 按类别拆开，并在中间强行加减一个本类中心 $\boldsymbol{\mu}_i$：
+$$\begin{aligned}
+\mathbf{S}_t &= \sum_{i=1}^N \sum_{\boldsymbol{x} \in X_i} \big[(\boldsymbol{x} - \boldsymbol{\mu}_i) + (\boldsymbol{\mu}_i - \boldsymbol{\mu})\big]\big[(\boldsymbol{x} - \boldsymbol{\mu}_i) + (\boldsymbol{\mu}_i - \boldsymbol{\mu})\big]^T \\
+&= \underbrace{\sum_{i=1}^N \sum_{\boldsymbol{x} \in X_i} (\boldsymbol{x} - \boldsymbol{\mu}_i)(\boldsymbol{x} - \boldsymbol{\mu}_i)^T}_{\mathbf{S}_w \text{（类内散度）}} + \underbrace{\sum_{i=1}^N m_i (\boldsymbol{\mu}_i - \boldsymbol{\mu})(\boldsymbol{\mu}_i - \boldsymbol{\mu})^T}_{\mathbf{S}_b \text{（类间散度）}} + \text{交叉项}
+\end{aligned}$$
+
+其中交叉项里包含 $\sum_{\boldsymbol{x} \in X_i} (\boldsymbol{x} - \boldsymbol{\mu}_i) = m_i\boldsymbol{\mu}_i - m_i\boldsymbol{\mu}_i = \mathbf{0}$，**交叉项直接消失为 0**！
+于是我们得到了优美的散度分解恒等式：
+$$\mathbf{S}_t = \mathbf{S}_w + \mathbf{S}_b$$
+
+> **验证一下退化回二分类对不对？**
+> 当 $N=2$ 时，可以代进去算出 $\mathbf{S}_b = \frac{m_0 m_1}{m_0 + m_1}(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)^T$，和二分类时的 $\mathbf{S}_b$ 只差一个正的常数系数，完美兼容！
+
+---
+
+### 2. 多分类的目标函数与求解
+
+投影到 $d'$ 维空间后：
+* 投影后的类内散度不再是一个数字，而是一个 $d' \times d'$ 的矩阵：$\mathbf{W}^T \mathbf{S}_w \mathbf{W}$。
+* 投影后的类间散度也变成了 $d' \times d'$ 的矩阵：$\mathbf{W}^T \mathbf{S}_b \mathbf{W}$
+
+矩阵之间没法直接相除，怎么办？我们需要把矩阵“浓缩”成一个数字来最大化。最经典的做法是**固定投影后的类内散度为单位矩阵**（即让投影出的 $d'$ 个新特征互相正交无关、且方差都为 1），同时**最大化类间散度矩阵的迹 $\text{tr}(\cdot)$**（迹就是矩阵对角线元素之和，代表各个新维度上的类间方差总和）：
+
+$$\max_{\mathbf{W}} \ \text{tr}(\mathbf{W}^T \mathbf{S}_b \mathbf{W}) \quad \text{约束条件: } \mathbf{W}^T \mathbf{S}_w \mathbf{W} = \mathbf{I}$$
+
+*(注：西瓜书式 3.40 写成了比值的形式 $\frac{\text{tr}(\mathbf{W}^T\mathbf{S}_b\mathbf{W})}{\text{tr}(\mathbf{W}^T\mathbf{S}_w\mathbf{W})}$，无论哪种写法，最终推导出的最优化必要条件都是一样的广义特征值问题)*
+
+同样用拉格朗日乘子法（这里乘子是一个对角矩阵 $\mathbf{\Lambda} = \text{diag}(\lambda_1, \dots, \lambda_{d'})$）：
+$$L(\mathbf{W}, \mathbf{\Lambda}) = \text{tr}(\mathbf{W}^T \mathbf{S}_b \mathbf{W}) - \text{tr}\big[\mathbf{\Lambda}(\mathbf{W}^T \mathbf{S}_w \mathbf{W} - \mathbf{I})\big]$$
+
+对矩阵 $\mathbf{W}$ 求导（利用矩阵求导公式 $\frac{\partial \text{tr}(\mathbf{W}^T\mathbf{A}\mathbf{W})}{\partial \mathbf{W}} = 2\mathbf{A}\mathbf{W}$）并令其为 0：
+$$2\mathbf{S}_b \mathbf{W} - 2\mathbf{S}_w \mathbf{W} \mathbf{\Lambda} = 0 \implies \mathbf{S}_b \mathbf{W} = \mathbf{S}_w \mathbf{W} \mathbf{\Lambda}$$
+
+把这个矩阵等式拆成一列一列来看（$\boldsymbol{w}_k$ 是 $\mathbf{W}$ 的第 $k$ 列，$\lambda_k$ 是对应的第 $k$ 个特征值）：
+$$\mathbf{S}_b \boldsymbol{w}_k = \lambda_k \mathbf{S}_w \boldsymbol{w}_k$$
+两边左乘 $\mathbf{S}_w^{-1}$：
+$$\boxed{(\mathbf{S}_w^{-1}\mathbf{S}_b)\boldsymbol{w}_k = \lambda_k \boldsymbol{w}_k}$$
+
+**看看这变成了什么？**
+这正是线性代数里最经典的**特征值与特征向量问题**！
+把上式代回我们的目标函数 $\text{tr}(\mathbf{W}^T \mathbf{S}_b \mathbf{W})$：
+$$\text{tr}(\mathbf{W}^T \mathbf{S}_b \mathbf{W}) = \text{tr}(\mathbf{W}^T \mathbf{S}_w \mathbf{W} \mathbf{\Lambda}) = \text{tr}(\mathbf{I}\mathbf{\Lambda}) = \lambda_1 + \lambda_2 + \dots + \lambda_{d'}$$
+
+**结论水落石出**：目标函数的值，**就等于你选出的那些特征值的总和**！
+所以要让目标函数最大，只需要：
+1. 求出矩阵 $\mathbf{S}_w^{-1}\mathbf{S}_b$ 的所有特征值和特征向量；
+2. 把特征值从大到小排队，**挑出最大的前 $d'$ 个特征值对应的特征向量**，拼成矩阵 $\mathbf{W}$ 即可！（这就完美对应了你笔记里的“关卡 4”）
+
+---
+
+### 3. 为什么多分类 LDA 最多只能降到 $N - 1$ 维？
+
+再看一眼类间散度矩阵 $\mathbf{S}_b$ 的公式：
+$$\mathbf{S}_b = \sum_{i=1}^N m_i (\boldsymbol{\mu}_i - \boldsymbol{\mu})(\boldsymbol{\mu}_i - \boldsymbol{\mu})^T$$
+
+每个小项 $(\boldsymbol{\mu}_i - \boldsymbol{\mu})(\boldsymbol{\mu}_i - \boldsymbol{\mu})^T$ 都是“列向量 $\times$ 行向量”，它的秩最多是 1。总共有 $N$ 项相加，按理说 $\text{rank}(\mathbf{S}_b)$ 最多应该是 $N$，为什么偏偏是 $N - 1$ 呢？
+
+因为全局中心 $\boldsymbol{\mu}$ 是由这 $N$ 个类的中心加权平均算出来的，它们之间存在**一条死绑定的线性约束**：
+$$\sum_{i=1}^N m_i (\boldsymbol{\mu}_i - \boldsymbol{\mu}) = \sum_{i=1}^N m_i \boldsymbol{\mu}_i - m\boldsymbol{\mu} = \mathbf{0}$$
+
+这意味着，知道前面 $N-1$ 个 $(\boldsymbol{\mu}_i - \boldsymbol{\mu})$，最后一个就被唯一确定了（冗余了 1 个自由度）
+* **几何直觉**：2 个中心点只能连成 **1 条直线**（$2-1=1$ 维）；3 个中心点最多张成 **1 个平面**（$3-1=2$ 维）；$N$ 个中心点最多张成一个 **$N-1$ 维的超平面**！
+* **代数结果**：$\text{rank}(\mathbf{S}_b) \le N - 1$，进而导致 $\text{rank}(\mathbf{S}_w^{-1}\mathbf{S}_b) \le N - 1$ 也就是说，**非零的特征值最多只有 $N - 1$ 个**，剩下的特征值全都是 $0$（没有任何区分类别的能力），所以最多只能降到 $N - 1$ 维！
+
+---
+
+### 一句话串联起整个推导脉络
+
+* **二分类**：因为 $\mathbf{S}_b$ 的秩只有 1（$\mathbf{S}_b\boldsymbol{w}$ 永远指着 $\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1$ 这个唯一方向），所以免去了求特征值的麻烦，一步写出闭式解 $\boldsymbol{w} = \mathbf{S}_w^{-1}(\boldsymbol{\mu}_0 - \boldsymbol{\mu}_1)$
+* **多分类**：$\mathbf{S}_b$ 的秩变成了 $N-1$，不再只有一个固定方向了，于是解退回到了一般形式——求 $\mathbf{S}_w^{-1}\mathbf{S}_b$ 的前 $d'$ 个（最多 $N-1$ 个）最大特征值对应的特征向量！
